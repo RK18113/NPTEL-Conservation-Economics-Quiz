@@ -13,12 +13,10 @@ function Modal({ isOpen, onClose, title, children }) {
   return (
     <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-10 font-playfair">
       <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-2xl border border-gray-700 relative">
-        {/* Title */}
         <h2 className="text-2xl font-semibold mb-4 text-gray-100 font-playfair">
           {title}
         </h2>
 
-        {/* Body */}
         <div
           className="text-gray-300 max-h-[60vh] overflow-y-auto font-playfair"
           style={{
@@ -26,7 +24,6 @@ function Modal({ isOpen, onClose, title, children }) {
             scrollbarColor: "#4a5568 #1a202c",
           }}
         >
-          {/* Use a wrapper div with the class instead of className on ReactMarkdown */}
           {typeof children === "string" && children !== "Thinking..." ? (
             <div className="prose prose-invert max-w-none">
               <ReactMarkdown>{children}</ReactMarkdown>
@@ -36,7 +33,6 @@ function Modal({ isOpen, onClose, title, children }) {
           )}
         </div>
 
-        {/* Close button */}
         <button
           onClick={onClose}
           className="border-2 border-white text-white font-playfair font-semibold py-3 px-6 rounded w-full mt-6 hover:bg-white hover:bg-opacity-20 transition-colors duration-200"
@@ -57,9 +53,7 @@ export default function App() {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [answeredQuestions, setAnsweredQuestions] = useState([]);
-  // Add new state for tracking incorrect questions
   const [incorrectQuestions, setIncorrectQuestions] = useState([]);
-  // Add state to track if we're in retake mode
   const [isRetakeMode, setIsRetakeMode] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -67,7 +61,6 @@ export default function App() {
   const [isLoadingGemini, setIsLoadingGemini] = useState(false);
   const [geminiError, setGeminiError] = useState(null);
 
-  // Load initial questions
   useEffect(() => {
     const shuffledQuestions = [...quizData]
       .sort(() => Math.random() - 0.5)
@@ -79,7 +72,6 @@ export default function App() {
     setAnsweredQuestions(new Array(shuffledQuestions.length).fill(false));
   }, []);
 
-  // Load incorrect questions from localStorage
   useEffect(() => {
     const savedIncorrectQuestions = localStorage.getItem("incorrectQuestions");
     if (savedIncorrectQuestions) {
@@ -87,7 +79,6 @@ export default function App() {
     }
   }, []);
 
-  // Save incorrect questions to localStorage whenever they change
   useEffect(() => {
     localStorage.setItem(
       "incorrectQuestions",
@@ -119,8 +110,6 @@ export default function App() {
     if (option === questions[currentQuestion].answer) {
       setScore(score + 1);
 
-      // If we're in retake mode and this question was answered correctly,
-      // remove it from the incorrect questions list
       if (isRetakeMode) {
         const updatedIncorrectQuestions = incorrectQuestions.filter(
           (q) => q.question !== questions[currentQuestion].question
@@ -128,9 +117,7 @@ export default function App() {
         setIncorrectQuestions(updatedIncorrectQuestions);
       }
     } else {
-      // Store the incorrectly answered question
       const newIncorrectQuestions = [...incorrectQuestions];
-      // Check if this question is already in the incorrect questions array
       const questionExists = newIncorrectQuestions.some(
         (q) => q.question === questions[currentQuestion].question
       );
@@ -153,9 +140,7 @@ export default function App() {
     if (nextQuestion < questions.length) {
       setCurrentQuestion(nextQuestion);
     } else {
-      // If we're in "retake mistakes" mode and the user got all questions correct
       if (isRetakeMode && score === questions.length) {
-        // Clear the incorrect questions
         setIncorrectQuestions([]);
         localStorage.removeItem("incorrectQuestions");
       }
@@ -201,18 +186,14 @@ export default function App() {
     setIsRetakeMode(false);
   };
 
-  // Add function to handle retaking only the incorrect questions
   const retakeMistakes = () => {
-    // Set the questions to only the incorrect ones
     setQuestions(incorrectQuestions);
-    // Reset other quiz state
     setCurrentQuestion(0);
     setScore(0);
     setShowScore(false);
     setSelectedAnswer(null);
     setShowAnswer(false);
     setAnsweredQuestions(new Array(incorrectQuestions.length).fill(false));
-    // Clear the modal if it's open
     setIsModalOpen(false);
     setModalContent("");
     setIsLoadingGemini(false);
