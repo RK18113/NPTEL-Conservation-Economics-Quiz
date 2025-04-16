@@ -147,7 +147,7 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-lg w-full border border-gray-700 w-[700px]">
+      <div className="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 w-[700px]">
         <div className="flex justify-between mb-4">
           <span className="font-semibold text-gray-300">
             Question {currentQuestion + 1}/{questions.length}
