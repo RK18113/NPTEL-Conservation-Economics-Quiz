@@ -115,3 +115,32 @@ Each question follows this format:
 ```
 
 ---
+
+## 🧠 Customizing AI Explanation Prompts
+
+If you want to change the way the AI (Google Gemini) explains answers, you can customize the prompt inside the `handleAskGemini` function (usually found in your quiz component or helper file).
+
+Here’s the default prompt format used:
+
+```js
+const prompt = `Explain the concept behind this quiz question from the Conservation Economics subject and why the answer is correct. Use clear and concise language suitable for someone learning the topic. Give crisp and clear 
+information making the answer within 100-200 words.
+
+Question: ${questionText}
+Correct Answer: ${correctAnswer}`;
+```
+
+### 🔧 Tips for Customizing:
+- You can **change the tone** (e.g., friendly, formal, technical).
+- Add extra **constraints** like word count, style, or explanation depth.
+- Provide **examples** if needed, or ask the AI to suggest further reading.
+
+#### Example Modified Prompt:
+```js
+const prompt = `You are an economics tutor. Explain this quiz question in a student-friendly tone and clarify *why* the correct answer is right. Use real-world examples where applicable. Limit your response to ~150 words.
+
+Q: ${questionText}
+A: ${correctAnswer}`;
+```
+
+---
