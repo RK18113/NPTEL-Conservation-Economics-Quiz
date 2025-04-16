@@ -48,7 +48,6 @@ An interactive quiz application focused on **Conservation Economics**, built wit
 
 ```bash
 git clone https://github.com/RK18113/NPTEL-Conservation-Economics-Quiz.git
-cd conservation-economics-quiz
 ```
 
 2. **Install dependencies:**
