@@ -1,6 +1,48 @@
 import { useState, useEffect } from "react";
 import "./index.css";
 import { quizData } from "./questions.js";
+import ReactMarkdown from "react-markdown";
+
+const GEMINI_API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
+const GEMINI_MODEL_NAME = "gemini-2.0-flash";
+const GEMINI_API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL_NAME}:generateContent?key=${GEMINI_API_KEY}`;
+
+function Modal({ isOpen, onClose, title, children }) {
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-10 font-playfair">
+      <div className="bg-gray-800 p-6 rounded-lg shadow-lg w-full max-w-2xl border border-gray-700 relative">
+        {/* Title */}
+        <h2 className="text-2xl font-semibold mb-4 text-gray-100 font-playfair">
+          {title}
+        </h2>
+
+        {/* Body */}
+        <div className="text-gray-300 max-h-[60vh] overflow-y-auto font-playfair">
+          {/* Use a wrapper div with the class instead of className on ReactMarkdown */}
+          {typeof children === "string" && children !== "Thinking..." ? (
+            <div className="prose prose-invert max-w-none">
+              <ReactMarkdown>{children}</ReactMarkdown>
+            </div>
+          ) : (
+            <div className="whitespace-pre-wrap">{children}</div>
+          )}
+        </div>
+
+        {/* Close button */}
+        <button
+          onClick={onClose}
+          className="border-2 border-white text-white font-playfair font-semibold py-3 px-6 rounded w-full mt-6 hover:bg-white hover:bg-opacity-20 transition-colors duration-200"
+        >
+          Close
+        </button>
+      </div>
+    </div>
+  );
+}
+
+
 
 export default function App() {
   const [questions, setQuestions] = useState([]);
@@ -11,6 +53,11 @@ export default function App() {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [answeredQuestions, setAnsweredQuestions] = useState([]);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [modalContent, setModalContent] = useState("");
+  const [isLoadingGemini, setIsLoadingGemini] = useState(false);
+  const [geminiError, setGeminiError] = useState(null);
 
   useEffect(() => {
     const shuffledQuestions = [...quizData]
@@ -29,18 +76,19 @@ export default function App() {
     setCurrentQuestion(0);
     setShowScore(false);
     setAnsweredQuestions(new Array(questions.length).fill(false));
+    setIsModalOpen(false);
+    setModalContent("");
+    setIsLoadingGemini(false);
+    setGeminiError(null);
   };
 
   const handleAnswerClick = (option) => {
-    if (showAnswer) return; 
-
+    if (showAnswer) return;
     setSelectedAnswer(option);
     setShowAnswer(true);
-
     const newAnsweredQuestions = [...answeredQuestions];
     newAnsweredQuestions[currentQuestion] = true;
     setAnsweredQuestions(newAnsweredQuestions);
-
     if (option === questions[currentQuestion].answer) {
       setScore(score + 1);
     }
@@ -49,6 +97,9 @@ export default function App() {
   const handleNextQuestion = () => {
     setSelectedAnswer(null);
     setShowAnswer(false);
+    setIsModalOpen(false);
+    setModalContent("");
+    setGeminiError(null);
 
     const nextQuestion = currentQuestion + 1;
     if (nextQuestion < questions.length) {
@@ -61,10 +112,13 @@ export default function App() {
   const handlePreviousQuestion = () => {
     if (currentQuestion > 0) {
       setCurrentQuestion(currentQuestion - 1);
+      setIsModalOpen(false);
+      setModalContent("");
+      setGeminiError(null);
 
       if (answeredQuestions[currentQuestion - 1]) {
         setShowAnswer(true);
-        setSelectedAnswer(null); 
+        setSelectedAnswer(null);
       } else {
         setShowAnswer(false);
         setSelectedAnswer(null);
@@ -86,20 +140,132 @@ export default function App() {
     setSelectedAnswer(null);
     setShowAnswer(false);
     setAnsweredQuestions(new Array(shuffledQuestions.length).fill(false));
+    setIsModalOpen(false);
+    setModalContent("");
+    setIsLoadingGemini(false);
+    setGeminiError(null);
   };
 
   const getButtonClass = (option) => {
     if (!showAnswer) {
       return "border border-white text-white font-semibold py-3 px-6 rounded w-full text-left hover:bg-white hover:bg-opacity-20 transition-colors duration-200";
     }
-
-    if (option === questions[currentQuestion].answer) {
+    if (option === questions[currentQuestion]?.answer) {
       return "border border-teal-500 bg-teal-500 bg-opacity-20 text-teal-300 font-semibold py-3 px-6 rounded w-full text-left";
     } else if (option === selectedAnswer) {
       return "border border-rose-500 bg-rose-500 bg-opacity-20 text-rose-300 font-semibold py-3 px-6 rounded w-full text-left";
     } else {
       return "border border-gray-600 text-gray-400 font-semibold py-3 px-6 rounded w-full text-left";
     }
+  };
+
+  const handleAskGemini = async () => {
+    if (!questions[currentQuestion]) return;
+    if (GEMINI_API_KEY === "YOUR_GEMINI_API_KEY") {
+      alert(
+        "Please replace 'YOUR_GEMINI_API_KEY' with your actual Gemini API key in App.jsx. Remember the security warning about exposing keys in the frontend."
+      );
+      return;
+    }
+
+    const questionText = questions[currentQuestion].question;
+    const correctAnswer = questions[currentQuestion].answer;
+
+    const prompt = `Explain the concept behind this quiz question from the Conservation Economics subject and why the answer is correct. Use clear and concise language suitable for someone learning the topic. Give crisp and clear 
+    information making the answer within 100-200 words.
+
+Question: ${questionText}
+Correct Answer: ${correctAnswer}`;
+
+    setIsLoadingGemini(true);
+    setGeminiError(null);
+    setModalContent("Thinking...");
+    setIsModalOpen(true);
+
+    try {
+      const response = await fetch(GEMINI_API_URL, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }],
+        }),
+      });
+
+      if (!response.ok) {
+        let errorBody = { message: "Unknown error" };
+        try {
+          errorBody = await response.json();
+        } catch (parseError) {
+          console.error("Could not parse error response body:", parseError);
+          errorBody.message = response.statusText || errorBody.message;
+        }
+        console.error("Gemini API Error Response:", errorBody);
+        throw new Error(
+          `API request failed with status ${response.status}: ${
+            errorBody?.error?.message || errorBody.message
+          }`
+        );
+      }
+
+      const data = await response.json();
+
+      if (
+        data.candidates &&
+        data.candidates[0] &&
+        data.candidates[0].content &&
+        data.candidates[0].content.parts &&
+        data.candidates[0].content.parts[0]
+      ) {
+        const geminiResponse = data.candidates[0].content.parts[0].text;
+        setModalContent(geminiResponse);
+      } else if (data.promptFeedback && data.promptFeedback.blockReason) {
+        const blockReason = data.promptFeedback.blockReason;
+        const blockMessage =
+          data.promptFeedback.safetyRatings
+            ?.map((r) => `${r.category}: ${r.probability}`)
+            .join(", ") || "No specific ratings.";
+        console.warn(
+          `Gemini content blocked: ${blockReason}. Details: ${blockMessage}`
+        );
+        setModalContent(
+          `The request was blocked by the safety filter (${blockReason}). Please try rephrasing or contact support if you believe this is an error.`
+        );
+        setGeminiError(`Content blocked: ${blockReason}`);
+      } else if (
+        data.candidates &&
+        data.candidates[0] &&
+        data.candidates[0].finishReason &&
+        data.candidates[0].finishReason !== "STOP"
+      ) {
+        const finishReason = data.candidates[0].finishReason;
+        const safetyRatings =
+          data.candidates[0].safetyRatings
+            ?.map((r) => `${r.category}: ${r.probability}`)
+            .join(", ") || "No specific ratings.";
+        console.warn(
+          `Gemini generation stopped due to: ${finishReason}. Safety Ratings: ${safetyRatings}`
+        );
+        setModalContent(
+          `The explanation could not be fully generated (Reason: ${finishReason}). This might be due to safety settings or other limitations.`
+        );
+        setGeminiError(`Generation stopped: ${finishReason}`);
+      } else {
+        console.error("Unexpected Gemini API response structure:", data);
+        throw new Error("Received an unexpected response format from the API.");
+      }
+    } catch (error) {
+      console.error("Error calling Gemini API:", error);
+      setGeminiError(`Failed to get explanation: ${error.message}`);
+      setModalContent(`Error: ${error.message}`);
+    } finally {
+      setIsLoadingGemini(false);
+    }
+  };
+
+  const handleCloseModal = () => {
+    setIsModalOpen(false);
   };
 
   if (!quizStarted) {
@@ -146,56 +312,74 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
-      <div className="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 w-[700px] min:h-[600px]">
-        <div className="flex justify-between mb-4">
-          <span className="font-semibold text-gray-300">
-            Question {currentQuestion + 1}/{questions.length}
-          </span>
-          <span className="font-semibold text-gray-300">Score: {score}</span>
-        </div>
+    <>
+      <div className="min-h-screen bg-gray-900 flex flex-col items-center justify-center p-4">
+        <div className="bg-gray-800 p-8 rounded-lg shadow-lg border border-gray-700 w-[700px] min:h-[600px] flex flex-col">
+          <div className="flex justify-between mb-4">
+            <span className="font-semibold text-gray-300">
+              Question {currentQuestion + 1}/{questions.length}
+            </span>
+            <span className="font-semibold text-gray-300">Score: {score}</span>
+          </div>
+          <div className="mb-6 flex-grow">
+            <h2 className="text-2xl md:text-3xl font-semibold mb-6 text-gray-100">
+              {questions[currentQuestion]?.question}
+            </h2>
+            <div className="flex flex-col gap-4">
+              {questions[currentQuestion]?.options.map((option, index) => (
+                <button
+                  key={index}
+                  onClick={() => handleAnswerClick(option)}
+                  className={getButtonClass(option)}
+                  disabled={showAnswer}
+                >
+                  {option}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div className="flex gap-4 flex-wrap">
+            <button
+              onClick={handlePreviousQuestion}
+              disabled={currentQuestion === 0}
+              className={`border-2 border-white text-white font-semibold py-3 px-6 rounded flex-1 mt-4 hover:bg-white hover:bg-opacity-20 transition-colors duration-200 ${
+                currentQuestion === 0 ? "opacity-50 cursor-not-allowed" : ""
+              }`}
+            >
+              Previous Question
+            </button>
 
-        <div className="mb-6">
-          <h2 className="text-2xl md:text-3xl font-semibold mb-6 text-gray-100">
-            {questions[currentQuestion]?.question}
-          </h2>
-          <div className="flex flex-col gap-4">
-            {questions[currentQuestion]?.options.map((option, index) => (
-              <button
-                key={index}
-                onClick={() => handleAnswerClick(option)}
-                className={getButtonClass(option)}
-                disabled={showAnswer}
-              >
-                {option}
-              </button>
-            ))}
+            {showAnswer && (
+              <>
+                <button
+                  onClick={handleAskGemini}
+                  className="border-2 border-purple-500 text-purple-300 font-semibold py-3 px-6 rounded flex-1 mt-4 hover:bg-purple-500 hover:bg-opacity-20 transition-colors duration-200"
+                >
+                  Ask Gemini
+                </button>
+
+                <button
+                  onClick={handleNextQuestion}
+                  className="border-2 border-white text-white font-semibold py-3 px-6 rounded flex-1 mt-4 hover:bg-white hover:bg-opacity-20 transition-colors duration-200"
+                >
+                  {currentQuestion < questions.length - 1
+                    ? "Next Question"
+                    : "See Results"}
+                </button>
+              </>
+            )}
           </div>
         </div>
-
-        <div className="flex gap-4">
-          <button
-            onClick={handlePreviousQuestion}
-            disabled={currentQuestion === 0}
-            className={`border-2 border-white text-white font-semibold py-3 px-6 rounded w-full mt-4 hover:bg-white hover:bg-opacity-20 transition-colors duration-200 ${
-              currentQuestion === 0 ? "opacity-50 cursor-not-allowed" : ""
-            }`}
-          >
-            Previous Question
-          </button>
-
-          {showAnswer && (
-            <button
-              onClick={handleNextQuestion}
-              className="border-2 border-white text-white font-semibold py-3 px-6 rounded w-full mt-4 hover:bg-white hover:bg-opacity-20 transition-colors duration-200"
-            >
-              {currentQuestion < questions.length - 1
-                ? "Next Question"
-                : "See Results"}
-            </button>
-          )}
-        </div>
       </div>
-    </div>
+      <Modal
+        isOpen={isModalOpen}
+        onClose={handleCloseModal}
+        title="Gemini Explanation"
+      >
+        {isLoadingGemini && !modalContent.startsWith("Error:")
+          ? "Thinking..."
+          : modalContent}
+      </Modal>
+    </>
   );
 }

@@ -4,9 +4,9 @@
 @tailwind components;
 @tailwind utilities;
 
-
+/* Apply Playfair Display to the entire document */
 body {
-  font-family: 'Playfair Display', sans-serif;
+  font-family: 'Playfair Display', serif;
   background-color: #1a202c; /* bg-gray-900 */
   color: #e2e8f0; /* text-gray-200 */
   letter-spacing: 0.01em;
@@ -14,12 +14,49 @@ body {
   font-size: 25px;
 }
 
+/* Specifically target modal elements to ensure consistent font */
+.fixed.inset-0.bg-black.bg-opacity-70.flex.items-center.justify-center.z-50.p-4,
+.bg-gray-800.p-6.rounded-lg.shadow-lg.w-full.max-w-2xl.border.border-gray-700.relative,
+.text-2xl.font-semibold.mb-4.text-gray-100,
+.text-gray-300.max-h-\[60vh\].overflow-y-auto,
+.whitespace-pre-wrap {
+  font-family: 'Playfair Display', serif !important;
+}
+
+/* Ensure modal buttons also use the same font */
+.modal-content button,
+.border-2.border-white.text-white.font-semibold.py-3.px-6.rounded.w-full.mt-6 {
+  font-family: 'Playfair Display', serif !important;
+}
+
 /* Reduce eye strain by adding subtle transitions */
 button {
   transition: all 0.2s ease;
+  font-family: 'Playfair Display', serif;
 }
 
 /* Add subtle border to containers for depth */
 .shadow-lg {
   box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3), 0 4px 6px -2px rgba(0, 0, 0, 0.2);
+}
+
+/* Target the scrollbar itself */
+::-webkit-scrollbar {
+  width: 10px; /* Width of the scrollbar */
+}
+
+/* Target the scrollbar track (background) */
+::-webkit-scrollbar-track {
+  background: #2d3748; /* Dark background to match your modal */
+}
+
+/* Target the scrollbar thumb (the draggable part) */
+::-webkit-scrollbar-thumb {
+  background: #4a5568; /* Slightly lighter than the track */
+  border-radius: 4px; /* Rounded corners */
+}
+
+/* Target the scrollbar thumb on hover */
+::-webkit-scrollbar-thumb:hover {
+  background: #718096; /* Even lighter on hover */
 }
