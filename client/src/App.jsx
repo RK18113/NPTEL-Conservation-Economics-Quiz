@@ -19,7 +19,13 @@ function Modal({ isOpen, onClose, title, children }) {
         </h2>
 
         {/* Body */}
-        <div className="text-gray-300 max-h-[60vh] overflow-y-auto font-playfair">
+        <div
+          className="text-gray-300 max-h-[60vh] overflow-y-auto font-playfair"
+          style={{
+            scrollbarWidth: "thin",
+            scrollbarColor: "#4a5568 #1a202c",
+          }}
+        >
           {/* Use a wrapper div with the class instead of className on ReactMarkdown */}
           {typeof children === "string" && children !== "Thinking..." ? (
             <div className="prose prose-invert max-w-none">
@@ -42,8 +48,6 @@ function Modal({ isOpen, onClose, title, children }) {
   );
 }
 
-
-
 export default function App() {
   const [questions, setQuestions] = useState([]);
   const [currentQuestion, setCurrentQuestion] = useState(0);
@@ -53,12 +57,17 @@ export default function App() {
   const [selectedAnswer, setSelectedAnswer] = useState(null);
   const [showAnswer, setShowAnswer] = useState(false);
   const [answeredQuestions, setAnsweredQuestions] = useState([]);
+  // Add new state for tracking incorrect questions
+  const [incorrectQuestions, setIncorrectQuestions] = useState([]);
+  // Add state to track if we're in retake mode
+  const [isRetakeMode, setIsRetakeMode] = useState(false);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [modalContent, setModalContent] = useState("");
   const [isLoadingGemini, setIsLoadingGemini] = useState(false);
   const [geminiError, setGeminiError] = useState(null);
 
+  // Load initial questions
   useEffect(() => {
     const shuffledQuestions = [...quizData]
       .sort(() => Math.random() - 0.5)
@@ -70,6 +79,22 @@ export default function App() {
     setAnsweredQuestions(new Array(shuffledQuestions.length).fill(false));
   }, []);
 
+  // Load incorrect questions from localStorage
+  useEffect(() => {
+    const savedIncorrectQuestions = localStorage.getItem("incorrectQuestions");
+    if (savedIncorrectQuestions) {
+      setIncorrectQuestions(JSON.parse(savedIncorrectQuestions));
+    }
+  }, []);
+
+  // Save incorrect questions to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem(
+      "incorrectQuestions",
+      JSON.stringify(incorrectQuestions)
+    );
+  }, [incorrectQuestions]);
+
   const startQuiz = () => {
     setQuizStarted(true);
     setScore(0);
@@ -80,6 +105,7 @@ export default function App() {
     setModalContent("");
     setIsLoadingGemini(false);
     setGeminiError(null);
+    setIsRetakeMode(false);
   };
 
   const handleAnswerClick = (option) => {
@@ -89,8 +115,30 @@ export default function App() {
     const newAnsweredQuestions = [...answeredQuestions];
     newAnsweredQuestions[currentQuestion] = true;
     setAnsweredQuestions(newAnsweredQuestions);
+
     if (option === questions[currentQuestion].answer) {
       setScore(score + 1);
+
+      // If we're in retake mode and this question was answered correctly,
+      // remove it from the incorrect questions list
+      if (isRetakeMode) {
+        const updatedIncorrectQuestions = incorrectQuestions.filter(
+          (q) => q.question !== questions[currentQuestion].question
+        );
+        setIncorrectQuestions(updatedIncorrectQuestions);
+      }
+    } else {
+      // Store the incorrectly answered question
+      const newIncorrectQuestions = [...incorrectQuestions];
+      // Check if this question is already in the incorrect questions array
+      const questionExists = newIncorrectQuestions.some(
+        (q) => q.question === questions[currentQuestion].question
+      );
+
+      if (!questionExists) {
+        newIncorrectQuestions.push(questions[currentQuestion]);
+        setIncorrectQuestions(newIncorrectQuestions);
+      }
     }
   };
 
@@ -105,6 +153,12 @@ export default function App() {
     if (nextQuestion < questions.length) {
       setCurrentQuestion(nextQuestion);
     } else {
+      // If we're in "retake mistakes" mode and the user got all questions correct
+      if (isRetakeMode && score === questions.length) {
+        // Clear the incorrect questions
+        setIncorrectQuestions([]);
+        localStorage.removeItem("incorrectQuestions");
+      }
       setShowScore(true);
     }
   };
@@ -144,6 +198,27 @@ export default function App() {
     setModalContent("");
     setIsLoadingGemini(false);
     setGeminiError(null);
+    setIsRetakeMode(false);
+  };
+
+  // Add function to handle retaking only the incorrect questions
+  const retakeMistakes = () => {
+    // Set the questions to only the incorrect ones
+    setQuestions(incorrectQuestions);
+    // Reset other quiz state
+    setCurrentQuestion(0);
+    setScore(0);
+    setShowScore(false);
+    setSelectedAnswer(null);
+    setShowAnswer(false);
+    setAnsweredQuestions(new Array(incorrectQuestions.length).fill(false));
+    // Clear the modal if it's open
+    setIsModalOpen(false);
+    setModalContent("");
+    setIsLoadingGemini(false);
+    setGeminiError(null);
+    setIsRetakeMode(true);
+    setQuizStarted(true);
   };
 
   const getButtonClass = (option) => {
@@ -278,12 +353,23 @@ Correct Answer: ${correctAnswer}`;
           <p className="mb-6 text-center text-gray-300">
             Test your knowledge with {quizData.length} randomized questions!
           </p>
-          <button
-            onClick={startQuiz}
-            className="border-2 border-white text-white font-semibold py-3 px-6 rounded w-full hover:bg-white hover:bg-opacity-20 transition-colors duration-200"
-          >
-            Start Quiz
-          </button>
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={startQuiz}
+              className="border-2 border-white text-white font-semibold py-3 px-6 rounded w-full hover:bg-white hover:bg-opacity-20 transition-colors duration-200"
+            >
+              Start Quiz
+            </button>
+
+            {incorrectQuestions.length > 0 && (
+              <button
+                onClick={retakeMistakes}
+                className="border-2 border-rose-500 text-rose-300 font-semibold py-3 px-6 rounded w-full hover:bg-rose-500 hover:bg-opacity-20 transition-colors duration-200"
+              >
+                Retake Mistakes ({incorrectQuestions.length})
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -300,12 +386,23 @@ Correct Answer: ${correctAnswer}`;
             Your Score: {score} out of {questions.length}
             <br />({Math.round((score / questions.length) * 100)}%)
           </p>
-          <button
-            onClick={resetQuiz}
-            className="border-2 border-white text-white font-semibold py-3 px-6 rounded w-full hover:bg-white hover:bg-opacity-20 transition-colors duration-200"
-          >
-            Restart Quiz
-          </button>
+          <div className="flex flex-col gap-4">
+            <button
+              onClick={resetQuiz}
+              className="border-2 border-white text-white font-semibold py-3 px-6 rounded w-full hover:bg-white hover:bg-opacity-20 transition-colors duration-200"
+            >
+              Restart Quiz
+            </button>
+
+            {incorrectQuestions.length > 0 && (
+              <button
+                onClick={retakeMistakes}
+                className="border-2 border-rose-500 text-rose-300 font-semibold py-3 px-6 rounded w-full hover:bg-rose-500 hover:bg-opacity-20 transition-colors duration-200"
+              >
+                Retake Mistakes ({incorrectQuestions.length})
+              </button>
+            )}
+          </div>
         </div>
       </div>
     );
@@ -318,6 +415,9 @@ Correct Answer: ${correctAnswer}`;
           <div className="flex justify-between mb-4">
             <span className="font-semibold text-gray-300">
               Question {currentQuestion + 1}/{questions.length}
+              {isRetakeMode && (
+                <span className="ml-2 text-rose-400">(Retake Mode)</span>
+              )}
             </span>
             <span className="font-semibold text-gray-300">Score: {score}</span>
           </div>
